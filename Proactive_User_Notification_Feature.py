@@ -1,3 +1,4 @@
+import getpass
 import smtplib
 import time
 from selenium import webdriver
@@ -6,6 +7,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from openpyxl import load_workbook
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 class LinkedInScraper:
@@ -68,36 +71,122 @@ class LinkedInScraper:
             self.driver.quit()
 
 
+# def generate_email_body(current_data, previous_data):
+#     body = ''
+#     if previous_data:
+#         # Prepare the email body with current and previous data
+#         body = {
+#             "Previous Unread Messages:": previous_data["unread_messages"],
+#             "Previous Unread Notifications:": previous_data["unread_notifications"],
+#             "Current Unread Messages:": current_data[0],
+#             "Current Unread Notifications:": current_data[1],
+#             "Comparison:": findComparison(current_data, previous_data)
+#         }
+#     else:
+#         # Prepare the email body with only current data
+#         body = {
+#             "Current Unread Messages:": current_data[0],
+#             "Current Unread Notifications:": current_data[1]
+#         }
+#     return body
+
 def generate_email_body(current_data, previous_data):
-    body = ''
+    css_styles = '''
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        h2 {
+            color: #0073b1;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            color: #333333;
+            margin-bottom: 10px;
+        }
+
+        ul {
+            margin-top: 0;
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+
+        .highlight {
+            color: #0073b1;
+            font-weight: bold;
+        }
+    </style>
+    '''
+
     if previous_data:
         # Prepare the email body with current and previous data
-        body = {
-            "Previous Unread Messages:": previous_data["unread_messages"],
-            "Previous Unread Notifications:": previous_data["unread_notifications"],
-            "Current Unread Messages:": current_data[0],
-            "Current Unread Notifications:": current_data[1],
-            "Comparison:": {
-                "Unread Messages:": current_data[0] - previous_data["unread_messages"],
-                "Unread Notifications:": current_data[1] - previous_data["unread_notifications"]
-            }
-        }
+        body = f'''
+        <html>
+        <head>{css_styles}</head>
+        <body>
+            <h2>LinkedIn Unread Messages and Notifications</h2>
+            <h3>Previous Unread Messages: {previous_data["unread_messages"]}</h3>
+            <h3>Previous Unread Notifications: {previous_data["unread_notifications"]}</h3>
+            <h3>Current Unread Messages: {current_data[0]}</h3>
+            <h3>Current Unread Notifications: {current_data[1]}</h3>
+            <h3>Comparison:</h3>
+            <ul>
+                <li><span class="highlight">Unread Messages:</span> {current_data[0] - previous_data["unread_messages"]}</li>
+                <li><span class="highlight">Unread Notifications:</span> {current_data[1] - previous_data["unread_notifications"]}</li>
+            </ul>
+        </body>
+        </html>
+        '''
     else:
         # Prepare the email body with only current data
-        body = {
-            "Current Unread Messages:": current_data[0],
-            "Current Unread Notifications:": current_data[1]
-        }
+        body = f'''
+        <html>
+        <head>{css_styles}</head>
+        <body>
+            <h2>LinkedIn Unread Messages and Notifications</h2>
+            <h3>Current Unread Messages: {current_data[0]}</h3>
+            <h3>Current Unread Notifications: {current_data[1]}</h3>
+        </body>
+        </html>
+        '''
     return body
 
 
-def send_email(sender_email, sender_password, recipient_email, SMTP_SERVER, SMTP_PORT, subject, body):
-    message = f'Subject: {subject}\n\n{body}'
 
+# def send_email(sender_email, sender_password, recipient_email, SMTP_SERVER, SMTP_PORT, subject, body):
+#     message = f'Subject: {subject}\n\n{body}'
+
+#     with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+#         server.starttls()
+#         server.login(sender_email, sender_password)
+#         server.sendmail(sender_email, recipient_email, message.encode('utf-8'))
+
+def send_email(sender_email, sender_password, recipient_email, SMTP_SERVER, SMTP_PORT, subject, body):
+    # Create a multipart message object
+    message = MIMEMultipart("alternative")
+    message["Subject"] = subject
+    message["From"] = sender_email
+    message["To"] = recipient_email
+
+    # Create HTML content for the email
+    html_content = body
+
+    # Attach the HTML content to the message
+    message.attach(MIMEText(html_content, "html"))
+
+    # Setup the SMTP server and send the email
     with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
         server.starttls()
         server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, message.encode('utf-8'))
+        server.sendmail(sender_email, recipient_email, message.as_string())
 
 
 def update_excel_data(filename, data):
@@ -116,11 +205,34 @@ def retrieve_previous_data(filename):
     }
 
 
+def findComparison(current_data, previous_data):
+    if previous_data['unread_messages'] < current_data[0] and previous_data['unread_notifications'] < current_data[1]:
+        return {
+            "Unread Messages:": current_data[0] - previous_data["unread_messages"],
+            "Unread Notifications:": current_data[1] - previous_data["unread_notifications"]
+        }
+    elif previous_data['unread_messages'] < current_data[0] and previous_data['unread_notifications'] > current_data[1]:
+        return {
+            "Unread Messages:": current_data[0] - previous_data["unread_messages"],
+            "Unread Notifications:": current_data[1] - previous_data["unread_notifications"]
+        }
+    elif previous_data['unread_messages'] > current_data[0] and previous_data['unread_notifications'] < current_data[1]:
+        return {
+            "Unread Messages:": current_data[0] - previous_data["unread_messages"],
+            "Unread Notifications:": current_data[1] - previous_data["unread_notifications"]
+        }
+    else:
+        return {
+            "Unread Messages:": current_data[0] - previous_data["unread_messages"],
+            "Unread Notifications:": current_data[1] - previous_data["unread_notifications"]
+        }
+
+
 if __name__ == '__main__':
     # Specify the path to the ChromeDriver executable
     chromedriver_path = '/path/to/chromedriver'
     username = 'gamodemy1@gmail.com'
-    password = 'Location@2003'
+    password = getpass.getpass('Enter your password: ')
 
     sender_email = 'yashpratapr@gmail.com'
     sender_password = 'ayuobdfxotqbjwog'
@@ -135,15 +247,19 @@ if __name__ == '__main__':
         current_data = linkedin_scraper.scrape_unread_data(username, password)
         if current_data is not None:
             workbook_filename = 'linkedin_data.xlsx'
+            # Retrieve the previous data from the Excel file
+            previous_data = retrieve_previous_data(workbook_filename)
+            #comparison
+            comparison = findComparison(current_data, previous_data)
             # Update the Excel file with the current data
             update_excel_data(workbook_filename, [
                 username,
                 time.strftime("%d-%B, %H:%M"),
                 current_data[0],
-                current_data[1]
+                current_data[1],
+                comparison["Unread Messages:"],
+                comparison["Unread Notifications:"]
             ])
-            # Retrieve the previous data from the Excel file
-            previous_data = retrieve_previous_data(workbook_filename)
             # Generate the email body
             email_body = generate_email_body(current_data, previous_data)
             subject = 'LinkedIn Unread Messages and Notifications'
