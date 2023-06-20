@@ -16,7 +16,7 @@ Before running the script, make sure you have the following:
 ## Installation
 
 1. Clone this repository to your local machine using the following command:
-`git clone https://github.com/ishu116/linkedin-scraper.git`
+`git clone https://github.com/Ishu116/PUNF_Case_Study.git`
 
 2. Install the required Python packages using `pip`:
 `pip install selenium openpyxl smtplib`
